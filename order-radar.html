@@ -552,7 +552,35 @@
         txt.textContent = 'Sauvegardé ' + fmt;
         lucide.createIcons();
     }
-    function applyManualStatuses(orders) {
+    // ─── DÉDUPLICATION ─────────────────────────────────────────────────────
+    function mergeOrders(existing, fresh) {
+        // Clé unique : ID email Gmail OU référence BDC + fournisseur
+        function key(o) {
+            if (o.emailId) return 'email:' + o.emailId;
+            if (o.reference && o.supplier) return 'ref:' + o.reference.trim().toLowerCase() + '|' + o.supplier.trim().toLowerCase();
+            if (o.reference) return 'ref:' + o.reference.trim().toLowerCase();
+            return 'sub:' + (o.subject||'').trim().toLowerCase();
+        }
+        const existingMap = new Map(existing.map(o => [key(o), o]));
+        let added = 0, updated = 0;
+        for (const o of fresh) {
+            const k = key(o);
+            if (existingMap.has(k)) {
+                // Conserver le statut manuel si présent, sinon prendre le nouveau
+                const old = existingMap.get(k);
+                const keepStatus = manualStatuses[old.id] ? old.status : o.status;
+                existingMap.set(k, { ...o, id: old.id, status: keepStatus, daysLeft: o.daysLeft });
+                updated++;
+            } else {
+                existingMap.set(k, o);
+                added++;
+            }
+        }
+        log('Fusion : ' + added + ' nouvelle(s), ' + updated + ' mise(s) à jour, ' + (existingMap.size - added - updated) + ' inchangée(s)', 'info');
+        return Array.from(existingMap.values());
+    }
+
+        function applyManualStatuses(orders) {
         return orders.map(o => {
             if (manualStatuses[o.id] === 'delivered') return { ...o, status: 'delivered', daysLeft: undefined };
             if (manualStatuses[o.id] === 'reset' && o.deliveryDate) {
@@ -717,7 +745,10 @@
             }
             log('Envoi à Claude pour extraction…', 'info');
             const freshOrders = await extractWithClaude(apiKey, bcEmails);
-            allOrders = applyManualStatuses(freshOrders);
+            const cache = loadOrdersFromCache();
+            const existing = cache?.orders || [];
+            const merged = mergeOrders(existing, freshOrders);
+            allOrders = applyManualStatuses(merged);
             updateStats(allOrders);
             document.getElementById('statsGrid').style.display  = 'grid';
             document.getElementById('filtersRow').style.display = 'flex';
@@ -823,13 +854,39 @@ Si aucune info extractible : retourne [].` });
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-            body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, messages: [{ role: 'user', content: contentBlocks }] })
+            body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 8192, messages: [{ role: 'user', content: contentBlocks }] })
         });
         if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error?.message || 'Claude API HTTP ' + resp.status); }
         const data = await resp.json();
         const raw  = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').replace(/```json|```/g,'').trim();
         const match = raw.match(/\[[\s\S]*\]/);
-        const orders = match ? JSON.parse(match[0]) : [];
+        if (!match) return [];
+
+        // Parsing robuste : tentative directe, puis nettoyage si échec
+        let orders = [];
+        try {
+            orders = JSON.parse(match[0]);
+        } catch(parseErr) {
+            log('⚠ JSON brut invalide, tentative de nettoyage…', 'warn');
+            try {
+                // Nettoyer les caractères problématiques courants
+                const cleaned = match[0]
+                    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')  // caractères de contrôle
+                    .replace(/,\s*([}\]])/g, '$1')                   // virgules trailing
+                    .replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":');      // clés sans guillemets
+                orders = JSON.parse(cleaned);
+                log('✓ JSON nettoyé et parsé avec succès', 'ok');
+            } catch(e2) {
+                // Dernier recours : extraire ordre par ordre avec regex
+                log('⚠ Tentative d\'extraction partielle…', 'warn');
+                const individualMatches = match[0].match(/\{[^{}]*\}/g) || [];
+                for (const item of individualMatches) {
+                    try { orders.push(JSON.parse(item)); } catch {}
+                }
+                if (orders.length) log('✓ ' + orders.length + ' commande(s) extraite(s) partiellement', 'ok');
+                else throw new Error('Impossible de parser la réponse JSON de Claude : ' + parseErr.message);
+            }
+        }
         const today  = new Date();
         return orders.map((o, i) => {
             if (!o.id) o.id = 'CMD-' + String(i+1).padStart(3,'0');
