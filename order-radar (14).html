@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Balcaen · Commandes BC-BCS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        * { -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --teal:        #0B7A82;
+            --teal-dim:    #094f54;
+            --teal-glow:   rgba(11,122,130,0.10);
+            --orange:      #E07B2A;
+            --bg:          #eef1f6;
+            --surface:     #f8fafc;
+            --surface2:    #edf0f5;
+            --border:      rgba(30,60,100,0.10);
+            --text:        #1a2332;
+            --text-muted:  #5a6a7e;
+            --text-dim:    #9aaabb;
+            --red:         #dc2626;
+            --amber:       #d97706;
+            --green:       #16a34a;
+        }
+
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex; overflow-x: hidden;
+        }
+
+        @keyframes reveal {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-dot {
+            0%,100% { transform: scale(1); opacity: 0.3; }
+            50%      { transform: scale(1.8); opacity: 0; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes shimmer {
+            0%   { background-position: -600px 0; }
+            100% { background-position: 600px 0; }
+        }
+
+        /* ─── SIDEBAR ─── */
+        .sidebar {
+            width: 240px; flex-shrink: 0; background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            position: fixed; top: 0; left: 0; bottom: 0; z-index: 50;
+        }
+        .sidebar-logo {
+            padding: 24px 20px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 12px;
+        }
+        .logo-mark {
+            width: 36px; height: 36px; border-radius: 9px;
+            background: linear-gradient(135deg, var(--teal) 0%, #0891b2 100%);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; color: white;
+        }
+        .logo-text { display: flex; flex-direction: column; line-height: 1.1; }
+        .logo-title { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; text-transform: uppercase; }
+        .logo-sub   { font-size: 10px; font-weight: 400; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+        .sidebar-nav { flex: 1; padding: 20px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 28px; }
+        .nav-label { font-size: 10px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; padding: 0 8px; margin-bottom: 6px; }
+        .nav-item {
+            display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px;
+            font-size: 13.5px; font-weight: 500; color: var(--text-muted); text-decoration: none;
+            cursor: pointer; transition: all 0.15s ease; border: 1px solid transparent;
+        }
+        .nav-item:hover  { background: rgba(255,255,255,0.6); color: var(--text); }
+        .nav-item.active { background: var(--teal-glow); color: var(--teal); border-color: rgba(11,122,130,0.2); }
+
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+        .status-chip { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+        .status-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+        .status-dot.online { background: var(--green); }
+        .status-dot.online::after {
+            content: ''; position: absolute; inset: -3px; border-radius: 50%;
+            background: var(--green); opacity: 0.3; animation: pulse-dot 1.5s ease infinite;
+        }
+
+        /* ─── MAIN ─── */
+        .main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+        .topbar {
+            position: sticky; top: 0; z-index: 40;
+            background: rgba(238,241,246,0.90); backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border); padding: 0 32px; height: 60px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .topbar-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+        .topbar-breadcrumb .current { color: var(--text); font-weight: 600; }
+        .topbar-right { display: flex; align-items: center; gap: 12px; }
+        .topbar-date { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+
+        /* Google user chip */
+        .user-chip {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 20px; padding: 4px 12px 4px 4px;
+            font-size: 12px; color: var(--text-muted); cursor: pointer;
+            transition: all 0.15s;
+        }
+        .user-chip:hover { border-color: var(--red); color: var(--red); }
+        .user-chip img { width: 24px; height: 24px; border-radius: 50%; }
+        .user-chip .user-name { font-weight: 500; color: var(--text); }
+
+        /* ─── PAGE ─── */
+        .page { padding: 36px 32px 48px; flex: 1; }
+
+        /* ─── HERO ─── */
+        .hero { margin-bottom: 36px; }
+        .hero-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin-bottom: 8px; opacity: 0; animation: reveal 0.5s ease 0.1s forwards; }
+        .hero h1 { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1.15; letter-spacing: -0.01em; opacity: 0; animation: reveal 0.5s ease 0.2s forwards; }
+        .hero h1 span { background: linear-gradient(135deg, var(--teal) 0%, #0891b2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .hero-sub { margin-top: 8px; font-size: 14px; color: var(--text-muted); opacity: 0; animation: reveal 0.5s ease 0.3s forwards; }
+        .hero-line { margin-top: 24px; height: 1px; background: linear-gradient(90deg, var(--teal), transparent); opacity: 0; animation: reveal 0.5s ease 0.4s forwards; }
+
+        /* ─── CONNECT BANNER ─── */
+        .connect-banner {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+            padding: 40px; text-align: center; margin-bottom: 28px;
+            opacity: 0; animation: reveal 0.45s ease 0.35s forwards;
+        }
+        .connect-banner .cb-icon {
+            width: 56px; height: 56px; border-radius: 14px;
+            background: var(--teal-glow); border: 1px solid rgba(11,122,130,0.2);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--teal); margin: 0 auto 16px;
+        }
+        .connect-banner h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+        .connect-banner p  { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.6; max-width: 420px; margin-left: auto; margin-right: auto; }
+
+        .btn-google {
+            display: inline-flex; align-items: center; gap: 10px;
+            background: white; border: 1px solid var(--border); border-radius: 8px;
+            padding: 11px 24px; font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 14px; font-weight: 600; color: var(--text);
+            cursor: pointer; transition: all 0.15s;
+            box-shadow: 0 1px 4px rgba(30,60,100,0.08);
+        }
+        .btn-google:hover { border-color: var(--teal); box-shadow: 0 4px 14px rgba(11,122,130,0.15); transform: translateY(-1px); }
+        .btn-google svg { width: 18px; height: 18px; }
+
+        /* ─── CONFIG CARD ─── */
+        .config-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 14px; padding: 24px; margin-bottom: 28px;
+            opacity: 0; animation: reveal 0.45s ease 0.35s forwards;
+        }
+        .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .card-icon-sm {
+            width: 32px; height: 32px; border-radius: 8px;
+            background: var(--teal-glow); border: 1px solid rgba(11,122,130,0.2);
+            display: flex; align-items: center; justify-content: center; color: var(--teal);
+        }
+        .card-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); }
+
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr 160px auto; gap: 16px; align-items: end; }
+
+        .field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px; }
+        .field input {
+            width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            padding: 9px 12px; font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 13px; color: var(--text); outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .field input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(11,122,130,0.1); }
+        .field input[type="password"] { letter-spacing: 3px; }
+        .api-wrap { position: relative; }
+        .api-wrap input { padding-right: 36px; }
+        .toggle-pw { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-dim); padding: 0; display: flex; align-items: center; transition: color 0.15s; }
+        .toggle-pw:hover { color: var(--teal); }
+
+        .bc-hint { display: flex; align-items: center; gap: 6px; background: rgba(11,122,130,0.07); border: 1px solid rgba(11,122,130,0.2); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--teal); font-weight: 500; margin-bottom: 8px; }
+
+        .btn-primary {
+            width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: var(--teal); color: white; border: none; border-radius: 8px; padding: 10px 20px;
+            font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600;
+            cursor: pointer; white-space: nowrap; transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+        }
+        .btn-primary:hover:not(:disabled) { background: var(--teal-dim); box-shadow: 0 4px 14px rgba(11,122,130,0.3); transform: translateY(-1px); }
+        .btn-primary:active:not(:disabled) { transform: translateY(0); }
+        .btn-primary:disabled { background: var(--surface2); color: var(--text-dim); cursor: not-allowed; transform: none; box-shadow: none; }
+        .spinning { animation: spin 0.7s linear infinite; display: inline-flex; }
+
+        /* ─── STATS ─── */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; opacity: 0; animation: reveal 0.45s ease 0.45s forwards; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; position: relative; overflow: hidden; }
+        .stat-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 14px 14px 0 0; }
+        .stat-card.c-teal::after  { background: var(--teal); }
+        .stat-card.c-amber::after { background: var(--amber); }
+        .stat-card.c-red::after   { background: var(--red); }
+        .stat-card.c-green::after { background: var(--green); }
+        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; }
+        .stat-value { font-size: 30px; font-weight: 700; line-height: 1; }
+        .stat-card.c-teal  .stat-value { color: var(--teal); }
+        .stat-card.c-amber .stat-value { color: var(--amber); }
+        .stat-card.c-red   .stat-value { color: var(--red); }
+        .stat-card.c-green .stat-value { color: var(--green); }
+
+        /* ─── SECTION ─── */
+        .section { margin-bottom: 36px; }
+        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+        .section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); }
+        .section-count { font-size: 11px; color: var(--text-dim); background: var(--surface2); padding: 2px 8px; border-radius: 20px; margin-left: 4px; }
+
+        /* ─── FILTERS ─── */
+        .filters-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+        .filter-btn {
+            display: flex; align-items: center; gap: 5px; padding: 6px 14px; border-radius: 20px;
+            border: 1px solid var(--border); background: var(--surface);
+            font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500;
+            color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+        }
+        .filter-btn:hover  { border-color: var(--teal); color: var(--teal); }
+        .filter-btn.active { background: var(--teal-glow); color: var(--teal); border-color: rgba(11,122,130,0.3); }
+
+        /* ─── TABLE ─── */
+        .table-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+        .table-head { display: grid; grid-template-columns: 52px 1fr 160px 140px 130px 130px 110px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+        .th { padding: 12px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); }
+        .orders-list { display: flex; flex-direction: column; }
+
+        .order-row { border-bottom: 1px solid var(--border); cursor: pointer; opacity: 0; animation: reveal 0.35s ease forwards; }
+        .order-row:last-child { border-bottom: none; }
+        .order-row:hover > .order-summary { background: rgba(11,122,130,0.03); }
+        .order-row.open  > .order-summary { background: rgba(11,122,130,0.05); }
+
+        .order-summary { display: grid; grid-template-columns: 52px 1fr 160px 140px 130px 130px 110px; padding: 0 20px; align-items: center; min-height: 64px; transition: background 0.15s; }
+        .order-num { font-size: 12px; font-weight: 700; color: var(--text-dim); padding: 0 8px; }
+        .order-subject-cell { padding: 14px 8px; min-width: 0; }
+        .subj-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .subj-from  { font-size: 11px; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .td { padding: 14px 8px; font-size: 13px; color: var(--text-muted); }
+        .td strong { color: var(--text); font-weight: 500; display: block; }
+        .td small   { font-size: 11px; color: var(--text-dim); margin-top: 1px; display: block; }
+
+        .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+        .badge-pending   { background: rgba(217,119,6,0.1);  color: var(--amber); }
+        .badge-pending   .badge-dot { background: var(--amber); }
+        .badge-delivered { background: rgba(22,163,74,0.1);  color: var(--green); }
+        .badge-delivered .badge-dot { background: var(--green); }
+        .badge-late      { background: rgba(220,38,38,0.1);  color: var(--red); }
+        .badge-late      .badge-dot { background: var(--red); }
+
+        .order-detail { display: none; background: var(--bg); border-top: 1px solid var(--border); padding: 24px 28px; gap: 24px; }
+        .order-row.open .order-detail { display: grid; grid-template-columns: 1fr 1.6fr 1fr; }
+        .detail-block h4 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .kv { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 7px; font-size: 13px; }
+        .kv .k { color: var(--text-muted); flex-shrink: 0; }
+        .kv .v { font-weight: 500; color: var(--text); text-align: right; word-break: break-word; }
+
+        .items-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .items-table th { text-align: left; padding: 6px 0; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+        .items-table td { padding: 7px 0; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+        .items-table tr:last-child td { border-bottom: none; }
+        .items-table td:first-child { color: var(--text); font-weight: 500; }
+        .items-table td:last-child  { text-align: right; }
+
+        .pdf-chip { display: inline-flex; align-items: center; gap: 5px; background: rgba(11,122,130,0.07); border: 1px solid rgba(11,122,130,0.2); border-radius: 6px; padding: 3px 8px; font-size: 11px; color: var(--teal); font-weight: 500; margin: 3px 3px 0 0; }
+
+        /* ─── STATE BOXES ─── */
+        .state-box { padding: 72px 40px; text-align: center; background: var(--surface); border-radius: 14px; border: 1px solid var(--border); }
+        .state-icon { width: 56px; height: 56px; border-radius: 14px; background: var(--teal-glow); border: 1px solid rgba(11,122,130,0.2); display: flex; align-items: center; justify-content: center; color: var(--teal); margin: 0 auto 16px; }
+        .state-box h3 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+        .state-box p  { font-size: 13px; color: var(--text-muted); max-width: 360px; margin: 0 auto; line-height: 1.6; }
+
+        .skeleton-row { height: 64px; border-bottom: 1px solid var(--border); background: linear-gradient(90deg, var(--surface2) 25%, #e4e9f0 50%, var(--surface2) 75%); background-size: 800px 100%; animation: shimmer 1.2s infinite; }
+
+        /* ─── LOG ─── */
+        .log-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-top: 28px; opacity: 0; animation: reveal 0.45s ease 0.6s forwards; }
+        .log-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+        .log-header-left { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .btn-ghost { background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--text-dim); font-family: 'IBM Plex Sans', sans-serif; transition: color 0.15s; }
+        .btn-ghost:hover { color: var(--red); }
+        .log-body { padding: 12px 20px; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+        .log-line { display: flex; gap: 12px; font-size: 12px; line-height: 1.5; }
+        .log-t { color: var(--text-dim); flex-shrink: 0; }
+        .log-m { color: var(--text-muted); }
+        .log-line.ok   .log-m { color: var(--green); }
+        .log-line.err  .log-m { color: var(--red); }
+        .log-line.warn .log-m { color: var(--amber); }
+        .log-line.info .log-m { color: var(--teal); }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+    <div class="sidebar-logo">
+        <div class="logo-mark"><i data-lucide="package-search" width="18" height="18"></i></div>
+        <div class="logo-text">
+            <span class="logo-title">Balcaen</span>
+            <span class="logo-sub">Centre de contrôle</span>
+        </div>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-label">Navigation</div>
+            <a href="index.html" class="nav-item">
+                <i data-lucide="layout-dashboard" width="16" height="16"></i> Tableau de bord
+            </a>
+            <a href="commandes.html" class="nav-item active">
+                <i data-lucide="shopping-cart" width="16" height="16"></i> Commandes BC-BCS
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="status-chip">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Non connecté</span>
+        </div>
+    </div>
+</aside>
+
+<!-- ─── MAIN ─── -->
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-breadcrumb">
+            <i data-lucide="layout-dashboard" width="14" height="14"></i>
+            <span>Balcaen</span>
+            <i data-lucide="chevron-right" width="14" height="14"></i>
+            <span class="current">Commandes BC-BCS</span>
+        </div>
+        <div class="topbar-right">
+            <span class="topbar-date" id="topbarDate"></span>
+            <div id="userChip" style="display:none" class="user-chip" onclick="signOut()" title="Déconnexion">
+                <img id="userAvatar" src="" alt="">
+                <span class="user-name" id="userName"></span>
+                <i data-lucide="log-out" width="12" height="12"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+
+        <!-- HERO -->
+        <div class="hero">
+            <div class="hero-eyebrow">Analyse Gmail · BC-BCS</div>
+            <h1>Suivi des <span>commandes fournisseurs</span></h1>
+            <div class="hero-sub">Détection automatique des bons de commande PDF dans Gmail — fichiers BC-BCS uniquement</div>
+            <div class="hero-line"></div>
+        </div>
+
+        <!-- CONNECT BANNER (visible si non connecté) -->
+        <div id="connectBanner" class="connect-banner">
+            <div class="cb-icon"><i data-lucide="mail" width="24" height="24"></i></div>
+            <h3>Connexion Gmail requise</h3>
+            <p>Connectez votre compte Google pour analyser votre boîte mail et détecter les PDFs BC-BCS automatiquement.</p>
+            <button class="btn-google" onclick="signInWithGoogle()">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Se connecter avec Google
+            </button>
+        </div>
+
+        <!-- CONFIG CARD (visible si connecté) -->
+        <div id="configCard" class="config-card" style="display:none">
+            <div class="card-header">
+                <div class="card-icon-sm"><i data-lucide="settings-2" width="16" height="16"></i></div>
+                <span class="card-label">Configuration de l'analyse</span>
+            </div>
+            <div class="config-grid">
+                <div class="field">
+                    <label>Clé API Anthropic</label>
+                    <div class="api-wrap">
+                        <input type="password" id="apiKey" placeholder="sk-ant-...">
+                        <button class="toggle-pw" onclick="togglePw()">
+                            <i data-lucide="eye" width="15" height="15"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Expéditeurs (virgule)</label>
+                    <input type="text" id="senders" placeholder="frederic@balcaen.net, josephine@balcaen.net">
+                </div>
+                <div class="field">
+                    <label>Période (jours)</label>
+                    <input type="number" id="days" value="60" min="1" max="365">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <div class="bc-hint">
+                        <i data-lucide="paperclip" width="13" height="13"></i>
+                        PDFs <strong style="margin-left:3px">BC-BCS*</strong> uniquement
+                    </div>
+                    <button class="btn-primary" id="scanBtn" onclick="startScan()">
+                        <span id="scanIcon" style="display:inline-flex"><i data-lucide="search" width="14" height="14"></i></span>
+                        Analyser Gmail
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATS -->
+        <div class="stats-grid" id="statsGrid" style="display:none">
+            <div class="stat-card c-teal">
+                <div class="stat-label">Commandes détectées</div>
+                <div class="stat-value" id="sTotal">0</div>
+            </div>
+            <div class="stat-card c-amber">
+                <div class="stat-label">En attente livraison</div>
+                <div class="stat-value" id="sPending">0</div>
+            </div>
+            <div class="stat-card c-red">
+                <div class="stat-label">En retard</div>
+                <div class="stat-value" id="sLate">0</div>
+            </div>
+            <div class="stat-card c-green">
+                <div class="stat-label">Livrées</div>
+                <div class="stat-value" id="sDelivered">0</div>
+            </div>
+        </div>
+
+        <!-- ORDERS -->
+        <div class="section">
+            <div class="section-header">
+                <div class="card-icon-sm"><i data-lucide="package" width="16" height="16"></i></div>
+                <span class="section-title">Commandes</span>
+                <span class="section-count" id="ordersCount"></span>
+            </div>
+            <div class="filters-row" id="filtersRow" style="display:none">
+                <button class="filter-btn active" onclick="setFilter('all',this)"><i data-lucide="layers" width="12" height="12"></i> Toutes</button>
+                <button class="filter-btn" onclick="setFilter('pending',this)"><i data-lucide="clock" width="12" height="12"></i> En attente</button>
+                <button class="filter-btn" onclick="setFilter('late',this)"><i data-lucide="alert-triangle" width="12" height="12"></i> En retard</button>
+                <button class="filter-btn" onclick="setFilter('delivered',this)"><i data-lucide="check-circle" width="12" height="12"></i> Livrées</button>
+            </div>
+            <div id="ordersArea">
+                <div class="state-box">
+                    <div class="state-icon"><i data-lucide="mail-search" width="24" height="24"></i></div>
+                    <h3>Connectez-vous à Gmail</h3>
+                    <p>Cliquez sur "Se connecter avec Google" pour autoriser l'accès à votre boîte mail.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG -->
+        <div class="log-card">
+            <div class="log-header">
+                <div class="log-header-left"><i data-lucide="terminal" width="14" height="14"></i> Journal d'activité</div>
+                <button class="btn-ghost" onclick="clearLog()">Effacer</button>
+            </div>
+            <div class="log-body" id="logBody">
+                <div class="log-line"><span class="log-t">--:--:--</span><span class="log-m">Système initialisé. Connectez-vous avec Google pour commencer.</span></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // ─── CONFIG ────────────────────────────────────────────────────────────
+    const GOOGLE_CLIENT_ID = '284185703523-dpq2ihvchr7b7pt6okbt1erknirqomja.apps.googleusercontent.com';
+    const GMAIL_SCOPES     = 'https://www.googleapis.com/auth/gmail.readonly';
+
+    lucide.createIcons();
+    document.getElementById('topbarDate').textContent = new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    // ─── STATE ─────────────────────────────────────────────────────────────
+    // RESTORE VALEURS SAUVEGARDEES
+    const savedKey     = localStorage.getItem('balcaen_api_key');
+    const savedSenders = localStorage.getItem('balcaen_senders');
+    const savedDays    = localStorage.getItem('balcaen_days');
+    if (savedKey)     document.getElementById('apiKey').value  = savedKey;
+    if (savedSenders) document.getElementById('senders').value = savedSenders;
+    if (savedDays)    document.getElementById('days').value    = savedDays;
+
+    document.getElementById('apiKey').addEventListener('input',  e => localStorage.setItem('balcaen_api_key', e.target.value));
+    document.getElementById('senders').addEventListener('input', e => localStorage.setItem('balcaen_senders', e.target.value));
+    document.getElementById('days').addEventListener('input',    e => localStorage.setItem('balcaen_days', e.target.value));
+
+    let accessToken   = null;
+    let allOrders     = [];
+    let currentFilter = 'all';
+
+    // ─── UTILS ─────────────────────────────────────────────────────────────
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function log(msg, type='') {
+        const body = document.getElementById('logBody');
+        const t = new Date().toLocaleTimeString('fr-FR');
+        const d = document.createElement('div');
+        d.className = 'log-line ' + type;
+        d.innerHTML = `<span class="log-t">${t}</span><span class="log-m">${esc(msg)}</span>`;
+        body.appendChild(d);
+        body.scrollTop = body.scrollHeight;
+    }
+    function clearLog() { document.getElementById('logBody').innerHTML = ''; }
+
+    function setStatus(online, text) {
+        document.getElementById('statusDot').className = 'status-dot' + (online ? ' online' : '');
+        document.getElementById('statusText').textContent = text;
+        document.getElementById('statusText').style.color = online ? '#16a34a' : '#dc2626';
+    }
+
+    function togglePw() {
+        const inp = document.getElementById('apiKey');
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    function setFilter(f, el) {
+        currentFilter = f;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        renderOrders();
+    }
+
+    // ─── GOOGLE OAUTH ──────────────────────────────────────────────────────
+    let tokenClient = null;
+    let tokenExpiresAt = 0; // timestamp ms
+
+    function signInWithGoogle() {
+        if (!tokenClient) {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: GMAIL_SCOPES,
+                callback: (resp) => {
+                    if (resp.error) { log('Erreur Google OAuth : ' + resp.error, 'err'); return; }
+                    accessToken  = resp.access_token;
+                    tokenExpiresAt = Date.now() + (parseInt(resp.expires_in || 3600) - 60) * 1000; // -60s de marge
+                    onSignedIn();
+                }
+            });
+        }
+        tokenClient.requestAccessToken();
+    }
+
+    // Renouvelle silencieusement le token si nécessaire, retourne une promesse
+    function ensureFreshToken() {
+        return new Promise((resolve, reject) => {
+            if (accessToken && Date.now() < tokenExpiresAt) {
+                resolve(); // token encore valide
+                return;
+            }
+            if (!tokenClient) { reject(new Error('Non connecté à Google')); return; }
+            log('🔄 Token expiré — renouvellement silencieux…', 'warn');
+            tokenClient.callback = (resp) => {
+                if (resp.error) { reject(new Error('Renouvellement OAuth échoué : ' + resp.error)); return; }
+                accessToken    = resp.access_token;
+                tokenExpiresAt = Date.now() + (parseInt(resp.expires_in || 3600) - 60) * 1000;
+                log('✓ Token renouvelé', 'ok');
+                resolve();
+            };
+            tokenClient.requestAccessToken({ prompt: '' }); // prompt vide = silencieux
+        });
+    }
+
+    function onSignedIn() {
+        log('✓ Connexion Google réussie', 'ok');
+        setStatus(true, 'Gmail connecté');
+
+        // Récupérer infos utilisateur
+        fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { 'Authorization': 'Bearer ' + accessToken }
+        })
+        .then(r => r.json())
+        .then(u => {
+            document.getElementById('userName').textContent   = u.given_name || u.name || '';
+            document.getElementById('userAvatar').src         = u.picture || '';
+            document.getElementById('userChip').style.display = 'flex';
+            lucide.createIcons();
+        });
+
+        document.getElementById('connectBanner').style.display = 'none';
+        document.getElementById('configCard').style.display    = 'block';
+        document.getElementById('ordersArea').innerHTML = `
+            <div class="state-box">
+                <div class="state-icon"><i data-lucide="mail-check" width="24" height="24"></i></div>
+                <h3>Gmail connecté</h3>
+                <p>Renseignez votre clé API Anthropic et lancez l'analyse pour détecter les commandes BC-BCS.</p>
+            </div>`;
+        lucide.createIcons();
+    }
+
+    function signOut() {
+        if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+        accessToken    = null;
+        tokenExpiresAt = 0;
+        allOrders   = [];
+        setStatus(false, 'Non connecté');
+        document.getElementById('userChip').style.display    = 'none';
+        document.getElementById('connectBanner').style.display = '';
+        document.getElementById('configCard').style.display    = 'none';
+        document.getElementById('statsGrid').style.display     = 'none';
+        document.getElementById('filtersRow').style.display    = 'none';
+        document.getElementById('ordersCount').textContent     = '';
+        document.getElementById('ordersArea').innerHTML = `
+            <div class="state-box">
+                <div class="state-icon"><i data-lucide="mail-search" width="24" height="24"></i></div>
+                <h3>Connectez-vous à Gmail</h3>
+                <p>Cliquez sur "Se connecter avec Google" pour autoriser l'accès à votre boîte mail.</p>
+            </div>`;
+        lucide.createIcons();
+        log('Déconnexion effectuée', 'warn');
+    }
+
+    // ─── SCAN ──────────────────────────────────────────────────────────────
+    async function startScan() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        if (!apiKey)      { log('⚠ Clé API Anthropic manquante', 'warn'); return; }
+        if (!accessToken && !tokenClient) { log('⚠ Non connecté à Gmail', 'warn'); return; }
+
+        const btn     = document.getElementById('scanBtn');
+        const icon    = document.getElementById('scanIcon');
+        const senders = document.getElementById('senders').value.trim();
+        const days    = parseInt(document.getElementById('days').value) || 60;
+        const since   = new Date();
+        since.setDate(since.getDate() - days);
+
+        btn.disabled = true;
+        icon.innerHTML = '<span class="spinning"><i data-lucide="loader-2" width="14" height="14"></i></span>';
+        lucide.createIcons();
+
+        log(`Analyse lancée — ${days} derniers jours`, 'info');
+        showLoading();
+
+        try {
+            // 0. Vérifier/renouveler le token avant toute requête
+            await ensureFreshToken();
+            log('Recherche des emails avec pièces jointes PDF...', 'info');
+            const emails = await fetchGmailEmails(senders, since);
+            log(`${emails.length} email(s) trouvé(s) avec PJ`, 'info');
+
+            // 2. Filtrer et récupérer les PDFs BC-BCS
+            log('Filtrage des PDFs BC-BCS*...', 'info');
+            const bcEmails = await filterBcBcsPdfs(emails);
+            log(`${bcEmails.length} email(s) avec PDFs BC-BCS détecté(s)`, bcEmails.length > 0 ? 'ok' : 'warn');
+
+            if (!bcEmails.length) {
+                allOrders = [];
+                updateStats([]);
+                renderOrders();
+                document.getElementById('statsGrid').style.display = 'grid';
+                document.getElementById('filtersRow').style.display = 'flex';
+                return;
+            }
+
+            // 3. Envoyer à Claude pour extraction
+            log('Envoi à Claude pour extraction des données...', 'info');
+            const orders = await extractWithClaude(apiKey, bcEmails);
+            allOrders = orders;
+            updateStats(orders);
+            document.getElementById('statsGrid').style.display = 'grid';
+            document.getElementById('filtersRow').style.display = 'flex';
+            renderOrders();
+            log(`✓ ${orders.length} commande(s) extraite(s)`, 'ok');
+
+        } catch(e) {
+            log('✕ ' + e.message, 'err');
+            showError(e.message);
+        }
+
+        btn.disabled = false;
+        icon.innerHTML = '<i data-lucide="search" width="14" height="14"></i>';
+        lucide.createIcons();
+    }
+
+    // ─── GMAIL API ─────────────────────────────────────────────────────────
+    async function gmailFetch(url) {
+        const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } });
+        if (!r.ok) {
+            const e = await r.json().catch(() => ({}));
+            throw new Error('Gmail API : ' + (e.error?.message || r.status));
+        }
+        return r.json();
+    }
+
+    async function fetchGmailEmails(senders, sinceDate) {
+        const after = Math.floor(sinceDate.getTime() / 1000);
+        let query   = `has:attachment after:${after}`;
+        if (senders) {
+            const list = senders.split(',').map(s => s.trim()).filter(Boolean);
+            if (list.length === 1) query += ` from:${list[0]}`;
+            else query += ` {${list.map(s => 'from:' + s).join(' ')}}`;
+        }
+
+        const data = await gmailFetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q=${encodeURIComponent(query)}`
+        );
+
+        return data.messages || [];
+    }
+
+    async function filterBcBcsPdfs(messages) {
+        const result = [];
+        for (const msg of messages) {
+            try {
+                const detail = await gmailFetch(
+                    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`
+                );
+
+                // Chercher les pièces jointes BC-BCS dans les parts
+                const fullMsg = await gmailFetch(
+                    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`
+                );
+
+                const bcParts = findBcBcsParts(fullMsg.payload);
+                if (bcParts.length === 0) continue;
+
+                const headers  = detail.payload?.headers || [];
+                const subject  = headers.find(h => h.name === 'Subject')?.value || '';
+                const from     = headers.find(h => h.name === 'From')?.value    || '';
+                const date     = headers.find(h => h.name === 'Date')?.value    || '';
+
+                // Télécharger le contenu des PDFs BC-BCS (base64)
+                const pdfs = [];
+                for (const part of bcParts) {
+                    try {
+                        const attData = await gmailFetch(
+                            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}/attachments/${part.body.attachmentId}`
+                        );
+                        pdfs.push({ filename: part.filename, data: attData.data });
+                        log(`→ PDF récupéré : ${part.filename}`, 'info');
+                    } catch(e) {
+                        log(`⚠ Impossible de lire ${part.filename}`, 'warn');
+                    }
+                }
+
+                if (pdfs.length > 0) {
+                    result.push({ id: msg.id, subject, from, date, pdfs });
+                }
+            } catch(e) {
+                log(`⚠ Erreur email ${msg.id} : ${e.message}`, 'warn');
+            }
+        }
+        return result;
+    }
+
+    function findBcBcsParts(payload) {
+        const parts = [];
+        function walk(p) {
+            if (!p) return;
+            if (p.filename && p.filename.startsWith('BC-BCS') && p.mimeType === 'application/pdf') {
+                parts.push(p);
+            }
+            // Also catch PDFs with filename starting with BC-BCS regardless of exact mime
+            if (p.filename && p.filename.toUpperCase().startsWith('BC-BCS') && p.body?.attachmentId) {
+                if (!parts.includes(p)) parts.push(p);
+            }
+            if (p.parts) p.parts.forEach(walk);
+        }
+        walk(payload);
+        // Deduplicate
+        return [...new Map(parts.map(p => [p.body?.attachmentId, p])).values()];
+    }
+
+    // ─── CLAUDE EXTRACTION ─────────────────────────────────────────────────
+    async function extractWithClaude(apiKey, bcEmails) {
+        // Prépare le contenu à envoyer à Claude
+        // On envoie les PDFs en base64 + les métadonnées email
+        const contentBlocks = [];
+
+        for (const email of bcEmails) {
+            contentBlocks.push({
+                type: 'text',
+                text: `Email de: ${email.from}\nSujet: ${email.subject}\nDate: ${email.date}\nFichiers BC-BCS joints:`
+            });
+
+            for (const pdf of email.pdfs) {
+                contentBlocks.push({
+                    type: 'text',
+                    text: `[PDF: ${pdf.filename}]`
+                });
+                // Envoyer le PDF en base64 à Claude
+                try {
+                    const b64 = pdf.data.replace(/-/g, '+').replace(/_/g, '/');
+                    contentBlocks.push({
+                        type: 'document',
+                        source: { type: 'base64', media_type: 'application/pdf', data: b64 }
+                    });
+                } catch(e) {
+                    contentBlocks.push({ type: 'text', text: '(PDF illisible)' });
+                }
+            }
+        }
+
+        contentBlocks.push({
+            type: 'text',
+            text: `Pour chaque email ci-dessus, extrais les informations de commande depuis les PDFs BC-BCS et retourne UNIQUEMENT un tableau JSON valide sans backticks:
+[
+  {
+    "id": "CMD-001",
+    "subject": "objet email",
+    "from": "expéditeur",
+    "receivedDate": "YYYY-MM-DD",
+    "supplier": "fournisseur",
+    "siteNumber": "numéro de chantier",
+    "reference": "référence/numéro BDC",
+    "deliveryDate": "YYYY-MM-DD ou null",
+    "items": [{"name":"article","quantity":10,"unit":"m3"}],
+    "status": "pending",
+    "pdfFiles": ["BC-BCS_xxx.pdf"]
+  }
+]
+Si aucune info extractible : retourne [].`
+        });
+
+        const resp = await fetch('/api/claude', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 4096,
+                messages: [{ role: 'user', content: contentBlocks }]
+            })
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error?.message || `Claude API HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const raw  = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').replace(/```json|```/g,'').trim();
+        const match = raw.match(/\[[\s\S]*\]/);
+        if (!match) return [];
+
+        const orders = JSON.parse(match[0]);
+        const today  = new Date();
+        return orders.map((o, i) => {
+            if (!o.id) o.id = `CMD-${String(i+1).padStart(3,'0')}`;
+            if (o.deliveryDate && o.status !== 'delivered') {
+                const diff = Math.ceil((new Date(o.deliveryDate) - today) / 86400000);
+                o.status   = diff < 0 ? 'late' : 'pending';
+                o.daysLeft = diff;
+            }
+            return o;
+        });
+    }
+
+    // ─── STATS ─────────────────────────────────────────────────────────────
+    function updateStats(orders) {
+        document.getElementById('sTotal').textContent     = orders.length;
+        document.getElementById('sPending').textContent   = orders.filter(o => o.status === 'pending').length;
+        document.getElementById('sLate').textContent      = orders.filter(o => o.status === 'late').length;
+        document.getElementById('sDelivered').textContent = orders.filter(o => o.status === 'delivered').length;
+    }
+
+    // ─── RENDER ────────────────────────────────────────────────────────────
+    function renderOrders() {
+        const area   = document.getElementById('ordersArea');
+        const count  = document.getElementById('ordersCount');
+        const list   = currentFilter === 'all' ? allOrders : allOrders.filter(o => o.status === currentFilter);
+        const labels = { pending:'En attente', delivered:'Livrée', late:'En retard' };
+
+        count.textContent = `${list.length} résultat${list.length > 1 ? 's' : ''}`;
+
+        if (!list.length) {
+            area.innerHTML = `
+            <div class="state-box">
+                <div class="state-icon"><i data-lucide="search-x" width="24" height="24"></i></div>
+                <h3>Aucune commande BC-BCS trouvée</h3>
+                <p>Aucun PDF BC-BCS détecté dans la période sélectionnée.</p>
+            </div>`;
+            lucide.createIcons(); return;
+        }
+
+        area.innerHTML = `
+        <div class="table-wrapper">
+            <div class="table-head">
+                <div class="th">#</div>
+                <div class="th">Email / Expéditeur</div>
+                <div class="th">Fournisseur</div>
+                <div class="th">Chantier</div>
+                <div class="th">Référence</div>
+                <div class="th">Livraison</div>
+                <div class="th">Statut</div>
+            </div>
+            <div class="orders-list">
+            ${list.map((o, i) => {
+                const delDate  = o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString('fr-FR') : '—';
+                const daysInfo = o.daysLeft !== undefined
+                    ? `<small>${o.daysLeft >= 0 ? `J-${o.daysLeft}` : `${Math.abs(o.daysLeft)}j retard`}</small>` : '';
+                const pdfs  = (o.pdfFiles||[]).map(f => `<span class="pdf-chip"><i data-lucide="file-text" width="11" height="11"></i> ${esc(f)}</span>`).join('');
+                const items = o.items || [];
+                return `
+                <div class="order-row" id="row-${i}" style="animation-delay:${i*0.05}s" onclick="toggleRow(${i})">
+                    <div class="order-summary">
+                        <div class="order-num">${String(i+1).padStart(2,'0')}</div>
+                        <div class="order-subject-cell">
+                            <div class="subj-title">${esc(o.subject||'—')}</div>
+                            <div class="subj-from"><i data-lucide="user" width="11" height="11"></i> ${esc(o.from||'—')} · ${o.receivedDate||'—'}</div>
+                        </div>
+                        <div class="td"><strong>${esc(o.supplier||'—')}</strong></div>
+                        <div class="td"><strong>${esc(o.siteNumber||'—')}</strong></div>
+                        <div class="td"><strong>${esc(o.reference||'—')}</strong></div>
+                        <div class="td"><strong>${delDate}</strong>${daysInfo}</div>
+                        <div class="td"><span class="badge badge-${o.status||'pending'}"><span class="badge-dot"></span>${labels[o.status]||'—'}</span></div>
+                    </div>
+                    <div class="order-detail">
+                        <div class="detail-block">
+                            <h4>Informations commande</h4>
+                            <div class="kv"><span class="k">Référence</span><span class="v">${esc(o.reference||'—')}</span></div>
+                            <div class="kv"><span class="k">Fournisseur</span><span class="v">${esc(o.supplier||'—')}</span></div>
+                            <div class="kv"><span class="k">Chantier N°</span><span class="v">${esc(o.siteNumber||'—')}</span></div>
+                            <div class="kv"><span class="k">Date réception</span><span class="v">${o.receivedDate||'—'}</span></div>
+                            <div class="kv"><span class="k">Livraison prévue</span><span class="v">${delDate}</span></div>
+                            ${pdfs ? `<div style="margin-top:10px">${pdfs}</div>` : ''}
+                        </div>
+                        <div class="detail-block">
+                            <h4>Matériaux / Articles</h4>
+                            ${items.length ? `
+                            <table class="items-table">
+                                <thead><tr><th>Désignation</th><th>Quantité</th><th>Unité</th></tr></thead>
+                                <tbody>${items.map(it => `
+                                    <tr>
+                                        <td>${esc(it.name||'—')}</td>
+                                        <td>${esc(String(it.quantity||'—'))}</td>
+                                        <td>${esc(it.unit||'—')}</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>` : '<p style="font-size:12px;color:var(--text-dim)">Aucun article extrait du PDF</p>'}
+                        </div>
+                        <div class="detail-block">
+                            <h4>Email source</h4>
+                            <div class="kv"><span class="k">De</span><span class="v">${esc(o.from||'—')}</span></div>
+                            <div class="kv"><span class="k">Sujet</span><span class="v">${esc(o.subject||'—')}</span></div>
+                            <div class="kv"><span class="k">Reçu le</span><span class="v">${o.receivedDate||'—'}</span></div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('')}
+            </div>
+        </div>`;
+        lucide.createIcons();
+    }
+
+    function toggleRow(i) { document.getElementById('row-' + i)?.classList.toggle('open'); }
+
+    function showLoading() {
+        document.getElementById('ordersArea').innerHTML = `
+        <div class="table-wrapper">
+            ${[1,2,3,4].map(i => `<div class="skeleton-row" style="opacity:${1-i*0.15}"></div>`).join('')}
+        </div>`;
+        document.getElementById('ordersCount').textContent = '';
+    }
+
+    function showError(msg) {
+        document.getElementById('ordersArea').innerHTML = `
+        <div class="state-box">
+            <div class="state-icon" style="background:rgba(220,38,38,0.08);border-color:rgba(220,38,38,0.2);color:var(--red)">
+                <i data-lucide="alert-circle" width="24" height="24"></i>
+            </div>
+            <h3>Erreur d'analyse</h3>
+            <p>${esc(msg)}</p>
+        </div>`;
+        lucide.createIcons();
+    }
+</script>
+</body>
+</html>
