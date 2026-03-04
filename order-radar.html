@@ -799,9 +799,10 @@
                 }
                 for (const part of imgParts) {
                     try {
+                        const sizeKb = part.body.size ? Math.round(part.body.size / 1024) + ' KB' : 'taille inconnue';
                         const att = await gmailFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/' + msg.id + '/attachments/' + part.body.attachmentId);
                         attachments.push({ filename: part.filename, data: att.data, mimeType: part.mimeType, type: 'image' });
-                        log('→ Image : ' + part.filename, 'info');
+                        log('→ Image : ' + part.filename + ' (' + sizeKb + ')', 'info');
                     } catch(e) { log('⚠ ' + part.filename, 'warn'); }
                 }
                 if (attachments.length) result.push({ id: msg.id, subject, from, date, attachments });
@@ -820,13 +821,49 @@
         walk(payload); return parts;
     }
     function findImageParts(payload) {
+        const MIN_SIZE = 100 * 1024; // 100 KB minimum — exclut logos et signatures
         const parts = [];
         function walk(p) {
             if (!p) return;
-            if (p.body?.attachmentId && p.mimeType?.startsWith('image/')) parts.push(p);
+            if (p.body?.attachmentId && p.mimeType?.startsWith('image/')) {
+                const size = p.body.size || 0;
+                if (size >= MIN_SIZE) parts.push(p);
+                // Si taille inconnue (size=0), on l'inclut quand même par précaution
+                else if (size === 0) parts.push(p);
+            }
             if (p.parts) p.parts.forEach(walk);
         }
         walk(payload); return parts;
+    }
+
+    // ─── COMPRESSION IMAGE ─────────────────────────────────────────────────
+    function compressImageB64(b64, mimeType) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const MAX_DIM = 1920;
+                let { width, height } = img;
+                if (width > MAX_DIM || height > MAX_DIM) {
+                    const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+                    width  = Math.round(width  * ratio);
+                    height = Math.round(height * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width; canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                // Compression progressive jusqu'à < 4 MB
+                let quality = 0.85;
+                let result = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+                while (result.length > 5_400_000 && quality > 0.2) {
+                    quality -= 0.1;
+                    result = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+                }
+                resolve(result);
+            };
+            img.onerror = () => reject(new Error('Image illisible'));
+            img.src = 'data:' + mimeType + ';base64,' + b64;
+        });
     }
 
     // ─── CLAUDE ────────────────────────────────────────────────────────────
@@ -842,7 +879,19 @@
                     catch(e) { contentBlocks.push({ type: 'text', text: '(PDF illisible)' }); }
                 } else {
                     contentBlocks.push({ type: 'text', text: '[Image: ' + att.filename + ']' });
-                    try { contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: att.mimeType || 'image/jpeg', data: b64 } }); }
+                    try {
+                        // Compresser l'image si > 4 MB (limite sécurisée avant le max Claude de 5 MB)
+                        const MAX_B64_CHARS = 5_400_000; // ~4 MB en base64
+                        let imgB64 = b64;
+                        let imgMime = att.mimeType || 'image/jpeg';
+                        if (imgB64.length > MAX_B64_CHARS) {
+                            log('⚙ Compression image ' + att.filename + '…', 'info');
+                            imgB64 = await compressImageB64(imgB64, imgMime);
+                            imgMime = 'image/jpeg';
+                            log('✓ Image compressée : ' + Math.round(imgB64.length / 1024) + ' KB', 'info');
+                        }
+                        contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: imgMime, data: imgB64 } });
+                    }
                     catch(e) { contentBlocks.push({ type: 'text', text: '(Image illisible)' }); }
                 }
             }
