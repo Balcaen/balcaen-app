@@ -261,22 +261,19 @@
         .badge-late      { background: rgba(220,38,38,0.1);  color: var(--red); }
         .badge-late      .badge-dot { background: var(--red); }
         /* ─── BOUTON LIVRÉ MANUEL ─── */
-        .btn-mark-delivered {
+        .btn-status {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
-            cursor: pointer; border: 1px solid rgba(22,163,74,0.3);
-            background: rgba(22,163,74,0.08); color: var(--green);
-            font-family: 'IBM Plex Sans', sans-serif; transition: all 0.15s;
+            cursor: pointer; font-family: 'IBM Plex Sans', sans-serif; transition: all 0.15s;
+            border: 1px solid transparent;
         }
-        .btn-mark-delivered:hover { background: rgba(22,163,74,0.18); }
-        .btn-mark-undelivered {
-            display: inline-flex; align-items: center; gap: 5px;
-            padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
-            cursor: pointer; border: 1px solid var(--border);
-            background: var(--surface2); color: var(--text-muted);
-            font-family: 'IBM Plex Sans', sans-serif; transition: all 0.15s;
-        }
-        .btn-mark-undelivered:hover { border-color: var(--amber); color: var(--amber); }
+        .btn-status.active { opacity: 0.4; cursor: default; pointer-events: none; }
+        .btn-status-pending  { background: rgba(217,119,6,0.08);  color: var(--amber); border-color: rgba(217,119,6,0.3); }
+        .btn-status-pending:hover  { background: rgba(217,119,6,0.18); }
+        .btn-status-late     { background: rgba(220,38,38,0.08);  color: var(--red);   border-color: rgba(220,38,38,0.3); }
+        .btn-status-late:hover     { background: rgba(220,38,38,0.18); }
+        .btn-status-delivered{ background: rgba(22,163,74,0.08);  color: var(--green); border-color: rgba(22,163,74,0.3); }
+        .btn-status-delivered:hover{ background: rgba(22,163,74,0.18); }
         .refresh-chip {
             display: inline-flex; align-items: center; gap: 6px;
             background: var(--surface); border: 1px solid var(--border);
@@ -582,8 +579,11 @@
 
         function applyManualStatuses(orders) {
         return orders.map(o => {
-            if (manualStatuses[o.id] === 'delivered') return { ...o, status: 'delivered', daysLeft: undefined };
-            if (manualStatuses[o.id] === 'reset' && o.deliveryDate) {
+            const manual = manualStatuses[o.id];
+            if (manual === 'delivered') return { ...o, status: 'delivered', daysLeft: undefined };
+            if (manual === 'pending')   return { ...o, status: 'pending', daysLeft: o.deliveryDate ? Math.ceil((new Date(o.deliveryDate) - new Date()) / 86400000) : undefined };
+            if (manual === 'late')      return { ...o, status: 'late', daysLeft: undefined };
+            if (manual === 'reset' && o.deliveryDate) {
                 const diff = Math.ceil((new Date(o.deliveryDate) - new Date()) / 86400000);
                 return { ...o, status: diff < 0 ? 'late' : 'pending', daysLeft: diff };
             }
@@ -634,15 +634,17 @@
     }
 
     // ─── MARQUAGE MANUEL LIVRÉ ─────────────────────────────────────────────
-    function markDelivered(orderId, delivered, event) {
+    function setOrderStatus(orderId, newStatus, event) {
         event.stopPropagation();
-        manualStatuses[orderId] = delivered ? 'delivered' : 'reset';
+        manualStatuses[orderId] = newStatus;
         localStorage.setItem('balcaen_manual_statuses', JSON.stringify(manualStatuses));
         allOrders = applyManualStatuses(allOrders);
         saveOrdersToCache(allOrders);
         updateStats(allOrders);
         renderOrders();
-        log('Commande ' + orderId + (delivered ? ' ✓ Livrée' : ' remise En attente'), delivered ? 'ok' : 'warn');
+        const labels = { pending: 'En attente', late: 'En retard', delivered: 'Livrée' };
+        const types  = { pending: 'warn', late: 'err', delivered: 'ok' };
+        log('Commande ' + orderId + ' → ' + (labels[newStatus] || newStatus), types[newStatus] || 'info');
     }
 
     // ─── GOOGLE OAUTH ──────────────────────────────────────────────────────
@@ -970,10 +972,12 @@ Si aucune info extractible : retourne [].` });
             const daysInfo = o.daysLeft !== undefined ? '<small>' + (o.daysLeft >= 0 ? 'J-'+o.daysLeft : Math.abs(o.daysLeft)+'j retard') + '</small>' : '';
             const pdfs     = (o.pdfFiles||[]).map(f => '<span class="pdf-chip"><i data-lucide="file-text" width="11" height="11"></i> '+esc(f)+'</span>').join('');
             const items    = o.items || [];
-            const isDel    = o.status === 'delivered';
-            const markBtn  = isDel
-                ? '<button class="btn-mark-undelivered" onclick="markDelivered(\''+esc(o.id)+'\', false, event)"><i data-lucide="rotate-ccw" width="11" height="11"></i> Annuler livraison</button>'
-                : '<button class="btn-mark-delivered"   onclick="markDelivered(\''+esc(o.id)+'\', true,  event)"><i data-lucide="check" width="11" height="11"></i> Marquer comme livré</button>';
+            const markBtn =
+                '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px">' +
+                '<button class="btn-status btn-status-pending'  + (o.status==='pending'   ? ' active' : '') + '" onclick="setOrderStatus(\''+esc(o.id)+'\',' + "'pending'" + ',event)"><i data-lucide="clock" width="11" height="11"></i> En attente</button>' +
+                '<button class="btn-status btn-status-late'     + (o.status==='late'      ? ' active' : '') + '" onclick="setOrderStatus(\''+esc(o.id)+'\',' + "'late'" + ',event)"><i data-lucide="alert-triangle" width="11" height="11"></i> En retard</button>' +
+                '<button class="btn-status btn-status-delivered'+ (o.status==='delivered' ? ' active' : '') + '" onclick="setOrderStatus(\''+esc(o.id)+'\',' + "'delivered'" + ',event)"><i data-lucide="check" width="11" height="11"></i> Livré</button>' +
+                '</div>';
             return '<div class="order-row" id="row-'+i+'" style="animation-delay:'+i*0.05+'s" onclick="toggleRow('+i+')">' +
                 '<div class="order-summary">' +
                     '<div class="order-num">'+String(i+1).padStart(2,'0')+'</div>' +
@@ -992,7 +996,7 @@ Si aucune info extractible : retourne [].` });
                         '<div class="kv"><span class="k">Date réception</span><span class="v">'+(o.receivedDate||'—')+'</span></div>' +
                         '<div class="kv"><span class="k">Livraison prévue</span><span class="v">'+delDate+'</span></div>' +
                         (pdfs ? '<div style="margin-top:10px">'+pdfs+'</div>' : '') +
-                        '<div style="margin-top:14px">'+markBtn+'</div>' +
+                        markBtn +
                     '</div>' +
                     '<div class="detail-block"><h4>Matériaux / Articles</h4>' +
                         (items.length
