@@ -531,17 +531,43 @@
     }
 
     // ─── GOOGLE OAUTH ──────────────────────────────────────────────────────
+    let tokenClient = null;
+    let tokenExpiresAt = 0; // timestamp ms
+
     function signInWithGoogle() {
-        const client = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: GMAIL_SCOPES,
-            callback: (resp) => {
-                if (resp.error) { log('Erreur Google OAuth : ' + resp.error, 'err'); return; }
-                accessToken = resp.access_token;
-                onSignedIn();
+        if (!tokenClient) {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: GMAIL_SCOPES,
+                callback: (resp) => {
+                    if (resp.error) { log('Erreur Google OAuth : ' + resp.error, 'err'); return; }
+                    accessToken  = resp.access_token;
+                    tokenExpiresAt = Date.now() + (parseInt(resp.expires_in || 3600) - 60) * 1000; // -60s de marge
+                    onSignedIn();
+                }
+            });
+        }
+        tokenClient.requestAccessToken();
+    }
+
+    // Renouvelle silencieusement le token si nécessaire, retourne une promesse
+    function ensureFreshToken() {
+        return new Promise((resolve, reject) => {
+            if (accessToken && Date.now() < tokenExpiresAt) {
+                resolve(); // token encore valide
+                return;
             }
+            if (!tokenClient) { reject(new Error('Non connecté à Google')); return; }
+            log('🔄 Token expiré — renouvellement silencieux…', 'warn');
+            tokenClient.callback = (resp) => {
+                if (resp.error) { reject(new Error('Renouvellement OAuth échoué : ' + resp.error)); return; }
+                accessToken    = resp.access_token;
+                tokenExpiresAt = Date.now() + (parseInt(resp.expires_in || 3600) - 60) * 1000;
+                log('✓ Token renouvelé', 'ok');
+                resolve();
+            };
+            tokenClient.requestAccessToken({ prompt: '' }); // prompt vide = silencieux
         });
-        client.requestAccessToken();
     }
 
     function onSignedIn() {
@@ -573,7 +599,8 @@
 
     function signOut() {
         if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
-        accessToken = null;
+        accessToken    = null;
+        tokenExpiresAt = 0;
         allOrders   = [];
         setStatus(false, 'Non connecté');
         document.getElementById('userChip').style.display    = 'none';
@@ -596,7 +623,7 @@
     async function startScan() {
         const apiKey = document.getElementById('apiKey').value.trim();
         if (!apiKey)      { log('⚠ Clé API Anthropic manquante', 'warn'); return; }
-        if (!accessToken) { log('⚠ Non connecté à Gmail', 'warn'); return; }
+        if (!accessToken && !tokenClient) { log('⚠ Non connecté à Gmail', 'warn'); return; }
 
         const btn     = document.getElementById('scanBtn');
         const icon    = document.getElementById('scanIcon');
@@ -613,7 +640,8 @@
         showLoading();
 
         try {
-            // 1. Récupérer les emails Gmail avec pièces jointes
+            // 0. Vérifier/renouveler le token avant toute requête
+            await ensureFreshToken();
             log('Recherche des emails avec pièces jointes PDF...', 'info');
             const emails = await fetchGmailEmails(senders, since);
             log(`${emails.length} email(s) trouvé(s) avec PJ`, 'info');
@@ -792,13 +820,12 @@
 Si aucune info extractible : retourne [].`
         });
 
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        const resp = await fetch('/api/claude', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true'
+                'anthropic-version': '2023-06-01'
             },
             body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
