@@ -816,7 +816,8 @@
         const parts = [];
         function walk(p) {
             if (!p) return;
-            if (p.filename && p.filename.toUpperCase().startsWith('BC-BCS') && p.body?.attachmentId)
+            const fn = p.filename ? p.filename.toUpperCase() : '';
+            if (p.filename && (fn.includes('BC-BCS') || fn.includes('BC_BCS')) && p.body?.attachmentId)
                 if (!parts.find(x => x.body?.attachmentId === p.body.attachmentId)) parts.push(p);
             if (p.parts) p.parts.forEach(walk);
         }
