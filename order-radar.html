@@ -740,26 +740,34 @@
             const bcEmails = await filterBcBcsAttachments(emails, includeImages);
             log(bcEmails.length + ' email(s) avec pièces jointes BC-BCS détecté(s)', bcEmails.length > 0 ? 'ok' : 'warn');
             if (!bcEmails.length) {
-                allOrders = []; updateStats([]); renderOrders();
+                // Conserver les commandes existantes — ne pas effacer le cache
+                const cache = loadOrdersFromCache();
+                const existing = cache?.orders || [];
+                allOrders = applyManualStatuses(existing);
+                updateStats(allOrders);
                 document.getElementById('statsGrid').style.display  = 'grid';
                 document.getElementById('filtersRow').style.display = 'flex';
-                return;
+                renderOrders();
+                log('Aucune nouvelle pièce jointe BC-BCS trouvée. Commandes existantes conservées.', 'warn');
+            } else {
+                log('Envoi à Claude pour extraction…', 'info');
+                const freshOrders = await extractWithClaude(apiKey, bcEmails);
+                const cache = loadOrdersFromCache();
+                const existing = cache?.orders || [];
+                const merged = mergeOrders(existing, freshOrders);
+                allOrders = applyManualStatuses(merged);
+                updateStats(allOrders);
+                document.getElementById('statsGrid').style.display  = 'grid';
+                document.getElementById('filtersRow').style.display = 'flex';
+                renderOrders(); saveOrdersToCache(allOrders);
+                log('✓ ' + allOrders.length + ' commande(s) extraite(s) et sauvegardée(s)', 'ok');
             }
-            log('Envoi à Claude pour extraction…', 'info');
-            const freshOrders = await extractWithClaude(apiKey, bcEmails);
-            const cache = loadOrdersFromCache();
-            const existing = cache?.orders || [];
-            const merged = mergeOrders(existing, freshOrders);
-            allOrders = applyManualStatuses(merged);
-            updateStats(allOrders);
-            document.getElementById('statsGrid').style.display  = 'grid';
-            document.getElementById('filtersRow').style.display = 'flex';
-            renderOrders(); saveOrdersToCache(allOrders);
-            log('✓ ' + allOrders.length + ' commande(s) extraite(s) et sauvegardée(s)', 'ok');
         } catch(e) { log('✕ ' + e.message, 'err'); if (!silent) showError(e.message); }
-        btn.disabled = false;
-        icon.innerHTML = '<i data-lucide="search" width="14" height="14"></i>';
-        lucide.createIcons();
+        finally {
+            btn.disabled = false;
+            icon.innerHTML = '<i data-lucide="search" width="14" height="14"></i>';
+            lucide.createIcons();
+        }
     }
 
     // ─── GMAIL API ─────────────────────────────────────────────────────────
